@@ -37,6 +37,8 @@ import {
 import type { PullRequestExpectedHost } from "./PullRequestListFilters";
 import type { PullRequestListPreferences, PullRequestListSort } from "./pullRequestListPreferences";
 import {
+  isPullRequestProjectHidden,
+  pullRequestHiddenFilterKeys,
   pullRequestProjectQueries,
   type PullRequestHostAvailability,
 } from "./pullRequestProjectAssignment.logic";
@@ -96,6 +98,18 @@ export function usePullRequestScope(
   const scopedProjectId = resolveProjectScope(search.projectId, projects, projectsKnown);
   const scopedProject = findScopedProject(projects, scopedEnvironmentId, scopedProjectId);
   const scopedProjects = pullRequestFilterProjects(projects, environmentLabels, scopedProject);
+  const hiddenProjects = pullRequestHiddenFilterKeys(
+    projects,
+    scopedProjects,
+    search.hideProjects,
+    scopedProject,
+  );
+  const isHidden = isPullRequestProjectHidden(projects, search.hideProjects);
+  const everyProjectHidden =
+    projectsKnown &&
+    scopedProjectId === undefined &&
+    projects.length > 0 &&
+    projects.every(isHidden);
 
   const selectedHost = search.selectedHost ?? search.host;
   // A named server still connecting is kept named rather than falling back: falling back while it
@@ -140,8 +154,16 @@ export function usePullRequestScope(
     readonly projectIds?: ReadonlyArray<ProjectId>;
   }> => {
     const plain = queryEnvironmentIds.map((environmentId) => ({ environmentId }));
-    if (!projectsKnown || scopedProjectId !== undefined) return plain;
-    return pullRequestProjectQueries(projects, queryEnvironmentIds, availability, unreachable);
+    if (scopedProjectId !== undefined) return plain;
+    // Hidden projects are left out by listing the rest, which needs the project list first.
+    if (!projectsKnown) return search.hideProjects?.length ? [] : plain;
+    return pullRequestProjectQueries(
+      projects,
+      queryEnvironmentIds,
+      availability,
+      unreachable,
+      search.hideProjects,
+    );
   };
   const environmentQueries = queriesFor(hostAvailability);
   // What the page reads once a refresh forgets host reads; refresh must refetch these too.
@@ -192,6 +214,8 @@ export function usePullRequestScope(
     scopedProjectId,
     scopedProject,
     scopedProjects,
+    hiddenProjects,
+    everyProjectHidden,
     selectedProject,
     queryEnvironmentIds,
     environmentQueries,

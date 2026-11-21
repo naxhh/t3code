@@ -51,6 +51,8 @@ export function PullRequestListEmptyState({
   filtered,
   searching,
   hasProjects,
+  everyProjectHidden,
+  onShowAllProjects,
   canLoadMore,
   loadingMore,
   refreshing,
@@ -62,6 +64,8 @@ export function PullRequestListEmptyState({
   filtered: boolean;
   searching: boolean;
   hasProjects: boolean;
+  everyProjectHidden: boolean;
+  onShowAllProjects: () => void;
   canLoadMore: boolean;
   loadingMore: boolean;
   refreshing: boolean;
@@ -87,6 +91,24 @@ export function PullRequestListEmptyState({
           <Button size="sm" onClick={() => openCommandPalette({ open: "add-project" })}>
             <PlusIcon className="size-3.5" />
             <T>Add project</T>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  if (everyProjectHidden) {
+    return (
+      <Empty>
+        <BranchMark joined={false} />
+        <EmptyHeader>
+          <EmptyTitle>
+            <T>Every project is hidden</T>
+          </EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button size="sm" variant="outline" onClick={onShowAllProjects}>
+            <T>Show all projects</T>
           </Button>
         </EmptyContent>
       </Empty>

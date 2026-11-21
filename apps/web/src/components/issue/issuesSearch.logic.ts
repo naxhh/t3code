@@ -22,7 +22,7 @@ const labels = (raw: unknown): ReadonlyArray<string> | undefined => {
   return names.length === 0 ? undefined : names.slice(0, 20);
 };
 
-const projectPairs = (raw: unknown): IssuesSearch["hideProjects"] => {
+export const projectPairsFromUrl = (raw: unknown): IssuesSearch["hideProjects"] => {
   const pairs = (Array.isArray(raw) ? raw : []).flatMap((pair) => {
     const environmentId = Array.isArray(pair) ? bounded(pair[0]) : undefined;
     const projectId = Array.isArray(pair) ? bounded(pair[1]) : undefined;
@@ -39,7 +39,7 @@ export const issuesSearchFromUrl = (raw: Record<string, unknown>): IssuesSearch 
   who:
     raw.who === "assigned" || raw.who === "authored" || raw.who === "mentioned" ? raw.who : "all",
   status: raw.status === "closed" || raw.status === "all" ? raw.status : "open",
-  hideProjects: projectPairs(raw.hideProjects),
+  hideProjects: projectPairsFromUrl(raw.hideProjects),
   host: bounded(raw.host),
   q: bounded(raw.q),
   label: labels(raw.label),

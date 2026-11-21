@@ -12,6 +12,7 @@ import {
   assignProjectsToEnvironments,
   rememberPullRequestHosts,
   resetPullRequestHosts,
+  pullRequestHiddenFilterKeys,
   pullRequestProjectQueries,
   resolvePickableEnvironments,
   type AssignableProject,
@@ -461,5 +462,61 @@ describe("where a pull request can be acted on", () => {
       workspaceRoot: "/srv/env-1/a1-wt",
       label: "Server env-1",
     });
+  });
+});
+
+const pair = (environmentId: string, projectId: string) =>
+  [environmentId as EnvironmentId, projectId as ProjectId] as const;
+const key = (environmentId: string, projectId: string) =>
+  JSON.stringify(pair(environmentId, projectId));
+
+describe("hidden projects", () => {
+  const projects = [
+    project("a", "env-1", "github.com/acme/a"),
+    project("a-wt", "env-1", "github.com/acme/a"),
+    project("b", "env-1", "github.com/acme/b"),
+    project("c", "env-2", "github.com/acme/c"),
+  ];
+
+  it("lists the rest by id, leaving out every checkout of a hidden repository", () => {
+    expect(
+      pullRequestProjectQueries(projects, envs("env-1", "env-2"), undefined, undefined, [
+        pair("env-1", "a"),
+      ]),
+    ).toEqual([{ environmentId: "env-1", projectIds: ["b"] }, { environmentId: "env-2" }]);
+  });
+
+  it("does not read a server whose every project is hidden", () => {
+    expect(
+      pullRequestProjectQueries(projects, envs("env-1", "env-2"), undefined, undefined, [
+        pair("env-2", "c"),
+      ]),
+    ).toEqual([{ environmentId: "env-1" }]);
+  });
+
+  it("lets a repository hidden on one server list from another that holds it", () => {
+    const shared = [
+      project("a", "env-1", "github.com/acme/a"),
+      project("a", "env-2", "github.com/acme/a"),
+    ];
+    expect(
+      pullRequestProjectQueries(shared, envs("env-1", "env-2"), undefined, undefined, [
+        pair("env-1", "a"),
+      ]),
+    ).toEqual([{ environmentId: "env-2" }]);
+  });
+
+  it("unchecks the listed copy of a hidden repository and keeps unlisted remembered ones", () => {
+    const listed = [projects[0]!, projects[2]!, projects[3]!];
+    expect(
+      pullRequestHiddenFilterKeys(projects, listed, [pair("env-1", "a-wt"), pair("env-9", "gone")]),
+    ).toEqual(new Set([key("env-1", "a"), key("env-9", "gone")]));
+  });
+
+  it("reads a single-project scope as every other project hidden", () => {
+    const listed = [projects[0]!, projects[2]!, projects[3]!];
+    expect(pullRequestHiddenFilterKeys(projects, listed, undefined, projects[1]!)).toEqual(
+      new Set([key("env-1", "b"), key("env-2", "c")]),
+    );
   });
 });

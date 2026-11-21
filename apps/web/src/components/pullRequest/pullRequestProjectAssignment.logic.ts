@@ -176,17 +176,64 @@ export function assignProjectsToEnvironments(
   return assignment;
 }
 
+const hiddenGroupKey = (project: AssignableProject) =>
+  JSON.stringify([project.environmentId, repositoryKey(project) ?? ["project", project.id]]);
+
+/**
+ * Hiding a project hides its repository on that server: the filter lists one entry per repository,
+ * and another checkout of it would otherwise still read the same pull requests.
+ */
+export function isPullRequestProjectHidden<Project extends AssignableProject>(
+  projects: ReadonlyArray<Project>,
+  hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]> | undefined,
+): (project: Project) => boolean {
+  if (!hidden?.length) return () => false;
+  const keys = new Set(hidden.map((pair) => JSON.stringify(pair)));
+  const groups = new Set(
+    projects
+      .filter((project) => keys.has(JSON.stringify([project.environmentId, project.id])))
+      .map(hiddenGroupKey),
+  );
+  return (project) => groups.has(hiddenGroupKey(project));
+}
+
+/**
+ * The filter keys shown unchecked: listed projects whose repository is hidden, plus remembered ones
+ * this client does not list, so they can still be taken off. A single-project scope from before
+ * the checklist reads as every other project hidden.
+ */
+export function pullRequestHiddenFilterKeys(
+  projects: ReadonlyArray<AssignableProject>,
+  listed: ReadonlyArray<AssignableProject>,
+  hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]> | undefined,
+  scoped?: AssignableProject,
+): ReadonlySet<string> {
+  const keyOf = (project: AssignableProject) => JSON.stringify([project.environmentId, project.id]);
+  if (scoped !== undefined) {
+    const scopedGroup = hiddenGroupKey(scoped);
+    return new Set(listed.filter((project) => hiddenGroupKey(project) !== scopedGroup).map(keyOf));
+  }
+  const isHidden = isPullRequestProjectHidden(projects, hidden);
+  const known = new Set(projects.map(keyOf));
+  return new Set([
+    ...listed.filter(isHidden).map(keyOf),
+    ...(hidden ?? []).map((pair) => JSON.stringify(pair)).filter((key) => !known.has(key)),
+  ]);
+}
+
 export function pullRequestProjectQueries(
   projects: ReadonlyArray<AssignableProject>,
   environmentIds: ReadonlyArray<EnvironmentId>,
   hostAvailability?: PullRequestHostAvailability,
   unreachableEnvironmentIds?: ReadonlySet<EnvironmentId>,
+  hidden?: ReadonlyArray<readonly [EnvironmentId, ProjectId]>,
 ): ReadonlyArray<{
   readonly environmentId: EnvironmentId;
   readonly projectIds?: ReadonlyArray<ProjectId>;
 }> {
+  const isHidden = isPullRequestProjectHidden(projects, hidden);
   const assignment = assignProjectsToEnvironments(
-    projects,
+    projects.filter((project) => !isHidden(project)),
     environmentIds,
     environmentIds[0],
     hostAvailability,

@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 
 import {
   EnvironmentId,
+  ISSUE_LIST_MAX_EXCLUDED_PROJECTS,
   ProjectId,
   PullRequestInvolvement,
   PullRequestListFilters,
@@ -24,6 +25,8 @@ export interface PullRequestListPreferences {
   readonly state: PullRequestListState;
   readonly environmentId?: EnvironmentId;
   readonly projectId?: ProjectId;
+  /** Projects left out of the list, so a project added later shows. */
+  readonly hideProjects?: ReadonlyArray<readonly [EnvironmentId, ProjectId]> | undefined;
   readonly host?: string | undefined;
   readonly q?: string | undefined;
   readonly draft?: "only" | "hide";
@@ -49,6 +52,11 @@ export const PullRequestListPreferencesSchema = Schema.Struct({
   state: PullRequestListState,
   environmentId: Schema.optional(EnvironmentId),
   projectId: Schema.optional(ProjectId),
+  hideProjects: Schema.optional(
+    Schema.Array(Schema.Tuple([EnvironmentId, ProjectId])).check(
+      Schema.isMaxLength(ISSUE_LIST_MAX_EXCLUDED_PROJECTS),
+    ),
+  ),
   host: Schema.optional(BoundedPreference),
   q: Schema.optional(BoundedPreference),
   draft: PullRequestListFilters.fields.draft,
@@ -79,6 +87,9 @@ export function pullRequestListPreferences(
     state: search.state,
     ...(search.environmentId ? { environmentId: search.environmentId } : {}),
     ...(search.projectId ? { projectId: search.projectId } : {}),
+    ...(search.hideProjects?.length
+      ? { hideProjects: search.hideProjects.slice(0, ISSUE_LIST_MAX_EXCLUDED_PROJECTS) }
+      : {}),
     ...(search.host ? { host: search.host } : {}),
     ...(search.q ? { q: search.q } : {}),
     ...(search.draft ? { draft: search.draft } : {}),

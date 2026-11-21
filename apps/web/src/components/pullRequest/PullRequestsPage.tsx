@@ -212,8 +212,9 @@ export function PullRequestsPage() {
     projects,
     environmentLabels,
     scopedProjectId,
-    scopedProject,
     scopedProjects,
+    hiddenProjects,
+    everyProjectHidden,
     selectedProject,
     queryEnvironmentIds,
     environmentQueries,
@@ -276,6 +277,7 @@ export function PullRequestsPage() {
           ...(next.repository ? { repository: next.repository } : {}),
           ...(next.number ? { number: next.number } : {}),
           ...(next.projectId ? { projectId: next.projectId } : {}),
+          ...(next.hideProjects?.length ? { hideProjects: next.hideProjects } : {}),
           ...(next.environmentId ? { environmentId: next.environmentId } : {}),
           ...(next.host ? { host: next.host } : {}),
           ...(next.selectedHost ? { selectedHost: next.selectedHost } : {}),
@@ -1276,6 +1278,8 @@ export function PullRequestsPage() {
       ) : shownCount === 0 ? (
         <PullRequestListEmptyState
           hasProjects={!projectsKnown || projects.length > 0}
+          everyProjectHidden={everyProjectHidden}
+          onShowAllProjects={() => updateListScope({ hideProjects: undefined })}
           refreshing={refreshing}
           onRefresh={() => void refreshFromHost()}
           query={typedQuery}
@@ -1284,6 +1288,7 @@ export function PullRequestsPage() {
             search.state !== "open" ||
             search.involvement !== "all" ||
             scopedProjectId !== undefined ||
+            hiddenProjects.size > 0 ||
             search.host !== undefined
           }
           searching={typedQuery.length > 0 && (!querySettled || showingCarried)}
@@ -1416,11 +1421,13 @@ export function PullRequestsPage() {
       serverOptions={serverMenuOptions}
       onServer={(server) => updateListScope({ environmentId: server, projectId: undefined })}
       projects={scopedProjects}
-      projectId={scopedProjectId}
-      projectEnvironmentId={scopedProject?.environmentId}
+      hiddenProjects={hiddenProjects}
       unavailable={unavailableProjects}
-      onProject={(projectId, environmentId) =>
-        updateListScope(environmentId === undefined ? { projectId } : { projectId, environmentId })
+      onHiddenProjects={(hideProjects) =>
+        updateListScope({
+          hideProjects: hideProjects.length > 0 ? hideProjects : undefined,
+          projectId: undefined,
+        })
       }
     />
   );

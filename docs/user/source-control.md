@@ -233,9 +233,13 @@ Where you can edit a description, you can also tick its checkboxes from the Summ
 (the Overview tab on mobile).
 GitLab calls these merge requests.
 
+To keep a repository's pull requests out of the list without archiving its project, open
+**Filters → Projects** on the web or desktop Pull requests page and uncheck it. The list remembers
+your choice in that browser, and a project you add later shows.
+
 Save a filter setup with **Views → Save current view** on the Pull Requests page. For example, choose
 **Reviewing** (**Your review** on mobile) and save it as "PRs Requesting My Review". Choose a saved view to restore its search,
-filters, sort order, and server/project scope. After changing filters, use **Update saved view** to
+filters, sort order, server scope, and hidden projects. After changing filters, use **Update saved view** to
 keep the changes, or save another view. You can also rename or delete views from the same menu.
 Saved views stay in the browser or app where you created them and do not sync across devices.
 

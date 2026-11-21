@@ -140,7 +140,6 @@ export function PullRequestSearchInput({
   );
 }
 
-const ALL_PROJECTS_VALUE = "all";
 const ALL_HOSTS_VALUE = "";
 const ALL_SERVERS_VALUE = "";
 const UNFILTERED_VALUE = "all";
@@ -527,10 +526,9 @@ export function PullRequestFiltersMenu({
   serverOptions,
   onServer,
   projects,
-  projectId,
-  projectEnvironmentId,
+  hiddenProjects,
   unavailable,
-  onProject,
+  onHiddenProjects,
 }: {
   onOpenChange?: (open: boolean) => void;
   state: PullRequestListState;
@@ -551,10 +549,9 @@ export function PullRequestFiltersMenu({
   serverOptions: ReadonlyArray<PullRequestFilterOption<string>>;
   onServer: (server: EnvironmentId | undefined) => void;
   projects: ReadonlyArray<ProjectFaviconProject & { readonly id: ProjectId }>;
-  projectId: ProjectId | undefined;
-  projectEnvironmentId: EnvironmentId | undefined;
+  hiddenProjects: ReadonlySet<string>;
   unavailable: ReadonlyMap<string, string>;
-  onProject: (projectId: ProjectId | undefined, environmentId: EnvironmentId | undefined) => void;
+  onHiddenProjects: (hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]>) => void;
 }) {
   const gt = useGT();
   const resolve = useMessages();
@@ -564,7 +561,7 @@ export function PullRequestFiltersMenu({
     involvement !== "all",
     host,
     server,
-    projectId,
+    hiddenProjects.size > 0,
     filters.draft,
     filters.review,
     filters.checks,
@@ -581,28 +578,6 @@ export function PullRequestFiltersMenu({
     updateFilters({
       [key]: value === UNFILTERED_VALUE ? undefined : value,
     } as Partial<PullRequestListFilters>);
-  const projectValue =
-    projectId === undefined || projectEnvironmentId === undefined
-      ? ALL_PROJECTS_VALUE
-      : pullRequestProjectKey({ id: projectId, environmentId: projectEnvironmentId });
-  const projectOptions: ReadonlyArray<PullRequestFilterOption<string>> = [
-    { value: ALL_PROJECTS_VALUE, label: gt("All projects"), Icon: LayersIcon },
-    ...projects
-      .toSorted(
-        (left, right) =>
-          Number(unavailable.has(pullRequestProjectKey(left))) -
-          Number(unavailable.has(pullRequestProjectKey(right))),
-      )
-      .map((project) => ({
-        value: pullRequestProjectKey(project),
-        label: project.title,
-        Icon: FolderGit2Icon,
-        project,
-        ...(unavailable.has(pullRequestProjectKey(project))
-          ? { unavailable: unavailable.get(pullRequestProjectKey(project)) }
-          : {}),
-      })),
-  ];
   return (
     <Menu onOpenChange={onOpenChange}>
       <MenuTrigger render={<Button variant="outline" />}>
@@ -688,18 +663,115 @@ export function PullRequestFiltersMenu({
             />
           </>
         ) : null}
-        <MenuSeparator />
-        <PullRequestFilterRadioSubmenu
-          label={gt("Project", { $context: "pull request filter" })}
-          value={projectValue}
-          options={projectOptions}
-          onChange={(next) => {
-            const project = projects.find((candidate) => pullRequestProjectKey(candidate) === next);
-            if (project) onProject(project.id, project.environmentId);
-            else if (projectId !== undefined) onProject(undefined, undefined);
-          }}
-        />
+        {projects.length > 0 || hiddenProjects.size > 0 ? (
+          <>
+            <MenuSeparator />
+            <PullRequestProjectVisibilitySubmenu
+              projects={projects}
+              hidden={hiddenProjects}
+              unavailable={unavailable}
+              onChange={onHiddenProjects}
+            />
+          </>
+        ) : null}
       </MenuPopup>
     </Menu>
+  );
+}
+
+const matchesTitle = (needle: string, title: string) =>
+  needle.length === 0 || title.toLowerCase().includes(needle);
+
+/** The issues and pull request lists both leave out the projects unchecked here. */
+export function PullRequestProjectVisibilitySubmenu(props: {
+  projects: ReadonlyArray<ProjectFaviconProject & { readonly id: ProjectId }>;
+  hidden: ReadonlySet<string>;
+  unavailable?: ReadonlyMap<string, string>;
+  onChange: (hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]>) => void;
+}) {
+  const gt = useGT();
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const unavailable = props.unavailable;
+  const visible = props.projects
+    .filter((project) => matchesTitle(needle, project.title))
+    .toSorted(
+      (left, right) =>
+        Number(unavailable?.has(pullRequestProjectKey(left)) ?? false) -
+        Number(unavailable?.has(pullRequestProjectKey(right)) ?? false),
+    );
+  const pairsOf = (keys: Iterable<string>) =>
+    [...keys].map((key) => JSON.parse(key) as readonly [EnvironmentId, ProjectId]);
+  return (
+    <MenuSub>
+      <MenuSubTrigger>
+        <FolderGit2Icon aria-hidden className="size-3.5" />
+        <span className="flex-1">{gt("Projects")}</span>
+        <span className="min-w-0 max-w-32 truncate text-xs text-muted-foreground">
+          {props.hidden.size === 0
+            ? gt("All projects")
+            : gt("{hidden} hidden", { hidden: props.hidden.size })}
+        </span>
+      </MenuSubTrigger>
+      <MenuSubPopup>
+        {props.projects.length > 8 ? (
+          <MenuSearchInput
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder={gt("Search projects")}
+            aria-label={gt("Search projects")}
+          />
+        ) : null}
+        <MenuCheckboxItem
+          checked={props.hidden.size === 0}
+          onCheckedChange={(shown) =>
+            props.onChange(
+              shown ? [] : pairsOf(props.projects.map((project) => pullRequestProjectKey(project))),
+            )
+          }
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <LayersIcon aria-hidden className="size-3.5" />
+            <span className="min-w-0 flex-1 truncate">{gt("Show all")}</span>
+          </span>
+        </MenuCheckboxItem>
+        <MenuSeparator />
+        {visible.length === 0 ? <MenuItem disabled>{gt("No matching projects.")}</MenuItem> : null}
+        {visible.map((project) => {
+          const key = pullRequestProjectKey(project);
+          const reason = unavailable?.get(key);
+          const item = (
+            <MenuCheckboxItem
+              key={key}
+              checked={!props.hidden.has(key)}
+              onCheckedChange={(shown) => {
+                const next = new Set(props.hidden);
+                if (shown) next.delete(key);
+                else next.add(key);
+                props.onChange(pairsOf(next));
+              }}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <ProjectFavicon project={project} className="size-3.5" />
+                <span className="min-w-0 flex-1 truncate">{project.title}</span>
+                {reason ? (
+                  <span className="shrink-0">
+                    · {gt("Unavailable", { $context: "filter option" })}
+                  </span>
+                ) : null}
+              </span>
+            </MenuCheckboxItem>
+          );
+          if (!reason) return item;
+          return (
+            <Tooltip key={key}>
+              <TooltipTrigger render={item} />
+              <TooltipPopup side="top">{reason}</TooltipPopup>
+            </Tooltip>
+          );
+        })}
+      </MenuSubPopup>
+    </MenuSub>
   );
 }

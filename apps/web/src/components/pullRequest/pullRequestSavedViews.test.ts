@@ -13,6 +13,10 @@ const preferences = {
   state: "open",
   environmentId: EnvironmentId.make("remote"),
   projectId: ProjectId.make("project"),
+  hideProjects: [
+    [EnvironmentId.make("remote"), ProjectId.make("hidden-1")],
+    [EnvironmentId.make("remote"), ProjectId.make("hidden-2")],
+  ],
   host: "github.example.com",
   q: "label:bug authentication",
   draft: "hide",
@@ -64,7 +68,7 @@ describe("saved PR views", () => {
     ).toBe(false);
   });
 
-  it("matches default sorting and label sets regardless of selection or label order", () => {
+  it("matches default sorting, label and hidden project sets regardless of order", () => {
     const defaultView = { ...view, preferences: { ...preferences, sort: undefined } };
     expect(
       pullRequestViewMatches(defaultView, {
@@ -75,6 +79,13 @@ describe("saved PR views", () => {
     ).toBe(true);
     expect(pullRequestViewMatches(view, { ...preferences, q: "different" })).toBe(false);
     expect(pullRequestViewMatches(view, { ...preferences, labels: ["bug"] })).toBe(false);
+    expect(
+      pullRequestViewMatches(view, {
+        ...preferences,
+        hideProjects: preferences.hideProjects.toReversed(),
+      }),
+    ).toBe(true);
+    expect(pullRequestViewMatches(view, { ...preferences, hideProjects: undefined })).toBe(false);
   });
 
   it("rejects blank and duplicate names while allowing a view to keep its own name", () => {

@@ -19,6 +19,7 @@ export function pullRequestViewMatches(
     return JSON.stringify({
       ...normalized,
       labels: normalized.labels?.toSorted(),
+      hideProjects: normalized.hideProjects?.map((pair) => JSON.stringify(pair)).toSorted(),
     });
   };
   return key(pullRequestListPreferences(view.preferences)) === key(preferences);
@@ -51,6 +52,7 @@ export function pullRequestSavedViewPatch(
     state: preferences.state,
     environmentId: preferences.environmentId,
     projectId: preferences.projectId,
+    hideProjects: preferences.hideProjects,
     host: preferences.host,
     q: preferences.q,
     draft: preferences.draft,
